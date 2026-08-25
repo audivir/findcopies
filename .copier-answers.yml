@@ -1,0 +1,11 @@
+# Changes here will be overwritten by Copier
+_commit: 1a45ad8
+_src_path: gh:audivir/copier-template
+description: Recursively find copies of files in a directory
+github_org: audivir
+go_module_path: github.com/audivir/findcopies
+go_version: '1.26'
+project_name: findcopies
+project_slug: findcopies
+project_type: go
+publishable: true

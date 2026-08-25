@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,10 +17,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+var version = "dev"
+
 func main() {
 	app := &cli.Command{
-		Name:  "findcopies",
-		Usage: "Find files matching a query file's sha256 hash.",
+		Name:    "findcopies",
+		Usage:   "Find files matching a query file's sha256 hash.",
+		Version: version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "query",
@@ -98,18 +102,16 @@ func main() {
 
 			// Start workers
 			for range workers {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					for path := range fileCh {
 						processFile(path, querySize, queryMD5, querySHA, verbose)
 					}
-				}()
+				})
 			}
 
 			// Walk directories and send files to workers
 			for _, dir := range dirs {
-				filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+				walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 					if err != nil {
 						if verbose {
 							fmt.Fprintf(os.Stderr, "walk error: %s: %v\n", path, err)
@@ -147,6 +149,9 @@ func main() {
 					fileCh <- path
 					return nil
 				})
+				if walkErr != nil {
+					fmt.Fprintf(os.Stderr, "walk error: %s: %v\n", dir, walkErr)
+				}
 			}
 
 			close(fileCh)
@@ -166,12 +171,12 @@ func hashFirstKB(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := md5.New()
 	buf := make([]byte, 1024)
 	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return "", err
 	}
 	h.Write(buf[:n])
@@ -183,7 +188,7 @@ func hashSHA256(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
