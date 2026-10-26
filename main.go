@@ -11,13 +11,25 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sync"
 
 	"github.com/gobwas/glob"
 	"github.com/urfave/cli/v3"
 )
 
+// version is set with -ldflags -X main.version=... for release builds, resolved from the
+// module build info for go install, and falls back to dev otherwise.
 var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	}
+}
 
 func main() {
 	app := &cli.Command{
